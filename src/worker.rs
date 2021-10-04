@@ -108,10 +108,10 @@ fn download_images(conn: &SqliteConnection) {
             .args([
                 "-i",
                 &source.playlist.unwrap(),
-                "-f",
-                "image2",
                 "-frames:v",
                 "1",
+                "-qscale:v",
+                "2",
                 "-y",
                 &filename,
             ])

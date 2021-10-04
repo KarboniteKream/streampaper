@@ -21,7 +21,7 @@ pub async fn get_image(
         .filter(dsl::name.eq(source_name))
         .first::<db::Source>(&conn)
         .ok()?;
-    let image = get_closest_image(&conn, source.id, timestamp)?;
+    let image = find_closest_image(&conn, source.id, timestamp)?;
 
     let path = format!("images/{}/{}.jpg", source.name, image.timestamp);
     let data = spawn_blocking(|| fs::read(path)).await.unwrap().ok();
@@ -29,7 +29,11 @@ pub async fn get_image(
     Some((ContentType::JPEG, data))
 }
 
-fn get_closest_image(conn: &SqliteConnection, source_id: i64, timestamp: i64) -> Option<db::Image> {
+fn find_closest_image(
+    conn: &SqliteConnection,
+    source_id: i64,
+    timestamp: i64,
+) -> Option<db::Image> {
     use schema::images::dsl;
 
     let older = dsl::images
