@@ -19,8 +19,10 @@ impl ConnectionPool {
 pub struct Source {
     pub id: i64,
     pub name: String,
+    pub typ: i32,
     pub url: String,
     pub playlist: Option<String>,
+    pub enabled: bool,
     pub updated_at: i64,
 }
 

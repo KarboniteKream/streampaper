@@ -4,10 +4,13 @@ use diesel::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::ops::Sub;
-use std::process::Command;
 
 use super::db;
+use super::models::SourceType;
 use super::schema;
+
+mod image;
+mod youtube;
 
 pub struct Worker {
     scheduler: Scheduler,
@@ -58,26 +61,13 @@ fn update_sources(conn: &SqliteConnection) {
         .expect("Error loading sources");
 
     for source in sources {
-        let output = Command::new("youtube-dl")
-            .args(["-g", "-f", "best", &source.url])
-            .output()
-            .expect("Failed to execute youtube-dl");
-
-        if !output.status.success() {
+        if !source.enabled {
             continue;
         }
 
-        if let Ok(playlist) = String::from_utf8(output.stdout) {
-            let result = diesel::update(dsl::sources.find(source.id))
-                .set((
-                    dsl::playlist.eq(playlist.trim()),
-                    dsl::updated_at.eq(Utc::now().timestamp()),
-                ))
-                .execute(conn);
-
-            if let Err(e) = result {
-                eprintln!("Unable to update source '{}': {}", source.name, e);
-            }
+        match SourceType::from(source.typ) {
+            SourceType::YouTube => youtube::update_source(&source, conn),
+            _ => continue,
         }
     }
 }
@@ -93,7 +83,7 @@ fn download_images(conn: &SqliteConnection) {
     for source in sources {
         use schema::images::{dsl, table};
 
-        if source.playlist.is_none() {
+        if !source.enabled {
             continue;
         }
 
@@ -104,22 +94,10 @@ fn download_images(conn: &SqliteConnection) {
         let timestamp = Utc::now().timestamp();
         let filename = format!("{}/{}.jpg", directory, timestamp);
 
-        let output = Command::new("ffmpeg")
-            .args([
-                "-i",
-                &source.playlist.unwrap(),
-                "-frames:v",
-                "1",
-                "-qscale:v",
-                "2",
-                "-y",
-                &filename,
-            ])
-            .output()
-            .expect("Failed to execute ffmpeg");
-
-        if !output.status.success() {
-            continue;
+        match SourceType::from(source.typ) {
+            SourceType::Url => image::download(&source, &filename),
+            SourceType::YouTube => youtube::download_image(&source, &filename),
+            _ => continue,
         }
 
         let result = diesel::insert_into(table)

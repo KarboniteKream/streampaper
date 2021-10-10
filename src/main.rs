@@ -10,6 +10,7 @@ use std::env;
 
 mod api;
 mod db;
+mod models;
 mod schema;
 mod worker;
 
