@@ -1,17 +1,13 @@
 use std::fs;
 
+use crate::util::Result;
+
 use super::db;
 
-pub fn download(source: &db::Source, filename: &str) {
-    let response = reqwest::blocking::get(&source.url);
+pub fn download(source: &db::Source, filename: &str) -> Result<()> {
+    let response = reqwest::blocking::get(&source.url)?;
+    let bytes = response.bytes()?;
 
-    if let Err(e) = response {
-        eprintln!("Unable to download image for '{}': {}", source.name, e);
-        return;
-    }
-
-    if let Ok(bytes) = response.unwrap().bytes() {
-        fs::write(filename, bytes)
-            .unwrap_or_else(|e| eprintln!("Unable to write '{}': {}", filename, e));
-    }
+    fs::write(filename, bytes)?;
+    Ok(())
 }

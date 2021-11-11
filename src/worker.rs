@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::ops::Sub;
 
+use crate::util::Error::UnsupportedSource;
+use crate::util::Result;
+
 use super::db;
 use super::models::SourceType;
 use super::schema;
@@ -25,62 +28,78 @@ impl Worker {
         }
     }
 
-    pub fn start(mut self, interval: Duration) -> ScheduleHandle {
+    pub fn start(mut self, interval: Duration) -> Result<ScheduleHandle> {
         let pool = self.pool.clone();
         self.scheduler.every(15.minutes()).run(move || {
-            update_sources(&pool.get());
+            if let Err(e) = update_sources(&pool.get()) {
+                eprintln!("Unable to update sources: {}", e);
+            }
         });
 
         let pool = self.pool.clone();
         self.scheduler.every(1.minutes()).run(move || {
-            download_images(&pool.get());
+            if let Err(e) = download_images(&pool.get()) {
+                eprintln!("Unable to download images: {}", e);
+            }
         });
 
         let pool = self.pool.clone();
         self.scheduler.every(1.hours()).run(move || {
-            cleanup_images(&pool.get());
+            if let Err(e) = remove_images(&pool.get()) {
+                eprintln!("Unable to remove old images: {}", e);
+            }
         });
 
         // Initial update.
-        update_sources(&self.pool.get());
+        let count = update_sources(&self.pool.get())?;
+        println!("Updated {} sources.", count);
 
-        self.scheduler.watch_thread(interval.to_std().unwrap())
+        let interval = interval.to_std()?;
+        Ok(self.scheduler.watch_thread(interval))
     }
 }
 
 /// Updates source playlist URLs if they don't exist or haven't been updated in 5 minutes.
-fn update_sources(conn: &SqliteConnection) {
+fn update_sources(conn: &SqliteConnection) -> Result<usize> {
     use schema::sources::dsl;
 
     let threshold = Utc::now().sub(Duration::minutes(5)).timestamp();
+    let mut count = 0;
 
     let sources = dsl::sources
         .filter(dsl::playlist.is_null())
         .or_filter(dsl::updated_at.le(threshold))
-        .load::<db::Source>(conn)
-        .expect("Error loading sources");
+        .load::<db::Source>(conn)?;
 
-    for source in sources {
+    for source in &sources {
         if !source.enabled {
             continue;
         }
 
-        match SourceType::from(source.typ) {
-            SourceType::YouTube => youtube::update_source(&source, conn),
+        let result = match SourceType::from(source.typ) {
+            SourceType::YouTube => youtube::update(source, conn),
             _ => continue,
+        };
+
+        if let Err(e) = result {
+            eprintln!("Unable to update source '{}': {}", source.name, e);
+            continue;
         }
+
+        count += 1;
     }
+
+    Ok(count)
 }
 
 /// Downloads the images of all sources.
-fn download_images(conn: &SqliteConnection) {
+fn download_images(conn: &SqliteConnection) -> Result<usize> {
     use schema::sources::dsl;
 
-    let sources = dsl::sources
-        .load::<db::Source>(conn)
-        .expect("Error loading sources");
+    let sources = dsl::sources.load::<db::Source>(conn)?;
+    let mut count = 0;
 
-    for source in sources {
+    for source in &sources {
         use schema::images::{dsl, table};
 
         if !source.enabled {
@@ -89,60 +108,57 @@ fn download_images(conn: &SqliteConnection) {
 
         // Create the target directory, if necessary.
         let directory = format!("images/{}", source.name);
-        fs::create_dir_all(&directory).unwrap();
+        fs::create_dir_all(&directory)?;
 
         let timestamp = Utc::now().timestamp();
         let filename = format!("{}/{}.jpg", directory, timestamp);
 
-        match SourceType::from(source.typ) {
-            SourceType::Url => image::download(&source, &filename),
-            SourceType::YouTube => youtube::download_image(&source, &filename),
-            _ => continue,
-        }
-
-        let result = diesel::insert_into(table)
-            .values((dsl::source_id.eq(source.id), dsl::timestamp.eq(timestamp)))
-            .execute(conn);
+        let result = match SourceType::from(source.typ) {
+            SourceType::Url => image::download(source, &filename),
+            SourceType::YouTube => youtube::download(source, &filename),
+            typ => Err(UnsupportedSource(typ).into()),
+        };
 
         if let Err(e) = result {
-            eprintln!("Unable to update '{}' at {}: {}", source.name, timestamp, e);
+            eprintln!(
+                "Unable to download image for source '{}': {}",
+                source.name, e
+            );
+            continue;
         }
+
+        diesel::insert_into(table)
+            .values((dsl::source_id.eq(source.id), dsl::timestamp.eq(timestamp)))
+            .execute(conn)?;
+
+        count += 1;
     }
+
+    Ok(count)
 }
 
-// Cleanup old images.
-fn cleanup_images(conn: &SqliteConnection) {
+/// Removes images older than 7 days.
+fn remove_images(conn: &SqliteConnection) -> Result<usize> {
     use schema::images::{dsl, table};
 
-    let threshold = Utc::now().sub(Duration::days(7)).timestamp();
-
     let sources = schema::sources::dsl::sources
-        .load::<db::Source>(conn)
-        .expect("Error loading sources")
+        .load::<db::Source>(conn)?
         .into_iter()
         .map(|source| (source.id, source.name))
         .collect::<HashMap<i64, String>>();
 
-    let images = dsl::images
-        .filter(dsl::timestamp.le(threshold))
-        .load::<db::Image>(conn)
-        .expect("Error loading images");
+    let threshold = Utc::now().sub(Duration::days(7)).timestamp();
+    let predicate = dsl::timestamp.le(threshold);
 
-    for image in images {
-        if !sources.contains_key(&image.source_id) {
-            continue;
+    let images = dsl::images.filter(&predicate).load::<db::Image>(conn)?;
+    diesel::delete(table).filter(&predicate).execute(conn)?;
+
+    for image in &images {
+        if let Some(source) = sources.get(&image.source_id) {
+            let filename = format!("images/{}/{}.jpg", source, image.timestamp);
+            fs::remove_file(filename).ok();
         }
-
-        let source = sources.get(&image.source_id).unwrap();
-        let filename = format!("images/{}/{}.jpg", source, image.timestamp);
-        fs::remove_file(filename).unwrap();
     }
 
-    let result = diesel::delete(table)
-        .filter(dsl::timestamp.le(threshold))
-        .execute(conn);
-
-    if let Err(e) = result {
-        eprintln!("Unable to delete old images: {}", e);
-    }
+    Ok(images.len())
 }

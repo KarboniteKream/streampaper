@@ -3,44 +3,47 @@ use diesel::prelude::*;
 use diesel::SqliteConnection;
 use std::process::Command;
 
+use crate::util::Error::{CommandError, NoPlaylist};
+use crate::util::Result;
+
 use super::db;
 use super::schema;
 
-pub fn update_source(source: &db::Source, conn: &SqliteConnection) {
+pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
     use schema::sources::dsl;
 
-    let output = Command::new("youtube-dl")
+    let command = "youtube-dl".to_string();
+    let output = Command::new(&command)
         .args(["-g", "-f", "best", &source.url])
-        .output()
-        .expect("Failed to execute youtube-dl");
+        .output()?;
 
     if !output.status.success() {
-        return;
+        let message = String::from_utf8(output.stderr)?;
+        return Err(CommandError(command, message).into());
     }
 
-    if let Ok(playlist) = String::from_utf8(output.stdout) {
-        let result = diesel::update(dsl::sources.find(source.id))
-            .set((
-                dsl::playlist.eq(playlist.trim()),
-                dsl::updated_at.eq(Utc::now().timestamp()),
-            ))
-            .execute(conn);
+    let playlist = String::from_utf8(output.stdout)?;
+    diesel::update(dsl::sources.find(source.id))
+        .set((
+            dsl::playlist.eq(playlist.trim()),
+            dsl::updated_at.eq(Utc::now().timestamp()),
+        ))
+        .execute(conn)?;
 
-        if let Err(e) = result {
-            eprintln!("Unable to update source '{}': {}", source.name, e);
-        }
-    }
+    Ok(())
 }
 
-pub fn download_image(source: &db::Source, filename: &str) {
-    if source.playlist.is_none() {
-        return;
-    }
+pub fn download(source: &db::Source, filename: &str) -> Result<()> {
+    let playlist = source
+        .playlist
+        .as_ref()
+        .ok_or_else(|| NoPlaylist(source.name.clone()))?;
 
-    let output = Command::new("ffmpeg")
+    let command = "ffmpeg".to_string();
+    let output = Command::new(&command)
         .args([
             "-i",
-            source.playlist.as_ref().unwrap(),
+            playlist,
             "-frames:v",
             "1",
             "-qscale:v",
@@ -48,10 +51,12 @@ pub fn download_image(source: &db::Source, filename: &str) {
             "-y",
             filename,
         ])
-        .output()
-        .expect("Failed to execute ffmpeg");
+        .output()?;
 
     if !output.status.success() {
-        eprintln!("Unable to download image for '{}'", source.name);
+        let message = String::from_utf8(output.stderr)?;
+        return Err(CommandError(command, message).into());
     }
+
+    Ok(())
 }

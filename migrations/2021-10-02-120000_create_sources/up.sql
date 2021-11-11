@@ -15,4 +15,4 @@ CREATE INDEX idx_sources_updated_at
 
 INSERT INTO sources (id, name, typ, url, enabled) VALUES
     (1, 'Kamikochi', 2, 'https://www.youtube.com/watch?v=9-sfWSHtJdk', 1),
-    (2, 'Sedlo', 1, 'http://pdkamnik.si/watermark.php?filename=sedlo.jpg', 1);
+    (2, 'KamniskoSedlo', 1, 'http://pdkamnik.si/watermark.php?filename=sedlo.jpg', 1);

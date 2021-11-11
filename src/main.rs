@@ -12,6 +12,7 @@ mod api;
 mod db;
 mod models;
 mod schema;
+mod util;
 mod worker;
 
 #[rocket::main]
@@ -22,7 +23,7 @@ async fn main() -> Result<(), rocket::Error> {
     let pool = db::ConnectionPool::new(&database_url);
 
     let worker = worker::Worker::new(&database_url);
-    let worker_handle = worker.start(Duration::seconds(1));
+    let worker_handle = worker.start(Duration::seconds(1)).unwrap();
 
     let rocket_result = rocket::build()
         .manage(pool)
