@@ -13,6 +13,7 @@ use super::models::SourceType;
 use super::schema;
 
 mod image;
+mod stream;
 mod youtube;
 
 pub struct Worker {
@@ -115,7 +116,7 @@ fn download_images(conn: &SqliteConnection) -> Result<usize> {
 
         let result = match SourceType::from(source.typ) {
             SourceType::Url => image::download(source, &filename),
-            SourceType::YouTube => youtube::download(source, &filename),
+            SourceType::YouTube | SourceType::Stream => stream::download(source, &filename),
             typ => Err(UnsupportedSource(typ).into()),
         };
 

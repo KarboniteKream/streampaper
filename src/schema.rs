@@ -11,7 +11,7 @@ table! {
         id -> BigInt,
         name -> Text,
         typ -> Integer,
-        url -> Text,
+        url -> Nullable<Text>,
         playlist -> Nullable<Text>,
         enabled -> Bool,
         updated_at -> BigInt,
@@ -20,4 +20,4 @@ table! {
 
 joinable!(images -> sources (source_id));
 
-allow_tables_to_appear_in_same_query!(images, sources,);
+allow_tables_to_appear_in_same_query!(images, sources);

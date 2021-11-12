@@ -1,8 +1,9 @@
 #[derive(Debug)]
 pub enum SourceType {
-    Unknown,
     Url,
     YouTube,
+    Stream,
+    Unknown,
 }
 
 impl From<i32> for SourceType {
@@ -10,6 +11,7 @@ impl From<i32> for SourceType {
         match value {
             1 => Self::Url,
             2 => Self::YouTube,
+            3 => Self::Stream,
             _ => Self::Unknown,
         }
     }

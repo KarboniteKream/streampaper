@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use diesel::SqliteConnection;
 use std::process::Command;
 
-use crate::util::Error::{CommandError, NoPlaylist};
+use crate::util::Error::{CommandError, NoUrl};
 use crate::util::Result;
 
 use super::db;
@@ -12,9 +12,14 @@ use super::schema;
 pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
     use schema::sources::dsl;
 
+    let url = source
+        .url
+        .as_ref()
+        .ok_or_else(|| NoUrl(source.name.clone()))?;
+
     let command = "youtube-dl".to_string();
     let output = Command::new(&command)
-        .args(["-g", "-f", "best", &source.url])
+        .args(["-g", "-f", "best", url])
         .output()?;
 
     if !output.status.success() {
@@ -29,34 +34,6 @@ pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
             dsl::updated_at.eq(Utc::now().timestamp()),
         ))
         .execute(conn)?;
-
-    Ok(())
-}
-
-pub fn download(source: &db::Source, filename: &str) -> Result<()> {
-    let playlist = source
-        .playlist
-        .as_ref()
-        .ok_or_else(|| NoPlaylist(source.name.clone()))?;
-
-    let command = "ffmpeg".to_string();
-    let output = Command::new(&command)
-        .args([
-            "-i",
-            playlist,
-            "-frames:v",
-            "1",
-            "-qscale:v",
-            "2",
-            "-y",
-            filename,
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        let message = String::from_utf8(output.stderr)?;
-        return Err(CommandError(command, message).into());
-    }
 
     Ok(())
 }

@@ -11,6 +11,7 @@ pub enum Error {
     CommandError(String, String),
     DatabaseError(diesel::result::Error),
     NoPlaylist(String),
+    NoUrl(String),
     UnsupportedSource(SourceType),
 }
 
@@ -24,6 +25,7 @@ impl Display for Error {
             }
             Self::DatabaseError(error) => write!(f, "Database error: {}", error),
             Self::NoPlaylist(source) => write!(f, "Source '{}' has no playlist", source),
+            Self::NoUrl(source) => write!(f, "Source '{}' has no URL", source),
             Self::UnsupportedSource(typ) => write!(f, "Source type '{:?}' is not supported", typ),
         }
     }
