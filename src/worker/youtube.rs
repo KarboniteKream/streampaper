@@ -17,7 +17,7 @@ pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
         .as_ref()
         .ok_or_else(|| NoUrl(source.name.clone()))?;
 
-    let command = "youtube-dl".to_string();
+    let command = "yt-dlp".to_string();
     let output = Command::new(&command)
         .args(["-g", "-f", "best", url])
         .output()?;
