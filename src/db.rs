@@ -22,6 +22,7 @@ pub struct Source {
     pub typ: i32,
     pub url: Option<String>,
     pub playlist: Option<String>,
+    pub headers: Option<String>,
     pub enabled: bool,
     pub updated_at: i64,
 }

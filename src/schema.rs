@@ -13,6 +13,7 @@ table! {
         typ -> Integer,
         url -> Nullable<Text>,
         playlist -> Nullable<Text>,
+        headers -> Nullable<Text>,
         enabled -> Bool,
         updated_at -> BigInt,
     }

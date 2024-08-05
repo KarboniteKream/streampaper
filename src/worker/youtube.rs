@@ -18,9 +18,18 @@ pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
         .ok_or_else(|| NoUrl(source.name.clone()))?;
 
     let command = "yt-dlp".to_string();
-    let output = Command::new(&command)
-        .args(["-g", "-f", "best", url])
-        .output()?;
+    let mut args = vec!["--get-url", "--format", "bestvideo", url];
+
+    if let Some(headers) = &source.headers {
+        let headers: Vec<_> = headers
+            .split(",")
+            .flat_map(|header| ["--add-headers", header])
+            .collect();
+
+        args = [headers, args].concat();
+    }
+
+    let output = Command::new(&command).args(args).output()?;
 
     if !output.status.success() {
         let message = String::from_utf8(output.stderr)?;

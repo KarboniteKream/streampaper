@@ -53,7 +53,7 @@ impl Worker {
 
         // Initial update.
         let count = update_sources(&self.pool.get())?;
-        println!("Updated {} sources.", count);
+        println!("Updated {} source(s).", count);
 
         let interval = interval.to_std()?;
         Ok(self.scheduler.watch_thread(interval))

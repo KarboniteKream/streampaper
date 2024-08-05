@@ -12,18 +12,22 @@ pub fn download(source: &db::Source, filename: &str) -> Result<()> {
         .ok_or_else(|| NoPlaylist(source.name.clone()))?;
 
     let command = "ffmpeg".to_string();
-    let output = Command::new(&command)
-        .args([
-            "-i",
-            playlist,
-            "-frames:v",
-            "1",
-            "-qscale:v",
-            "2",
-            "-y",
-            filename,
-        ])
-        .output()?;
+    let mut args = vec![
+        "-i",
+        playlist,
+        "-frames:v",
+        "1",
+        "-qscale:v",
+        "2",
+        "-y",
+        filename,
+    ];
+
+    if let Some(headers) = &source.headers {
+        args = [vec!["-headers", headers], args].concat();
+    }
+
+    let output = Command::new(&command).args(args).output()?;
 
     if !output.status.success() {
         let message = String::from_utf8(output.stderr)?;
