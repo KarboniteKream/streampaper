@@ -24,11 +24,13 @@ pub struct Source {
     pub playlist: Option<String>,
     pub headers: Option<String>,
     pub enabled: bool,
+    #[allow(unused)]
     pub updated_at: i64,
 }
 
 #[derive(Queryable)]
 pub struct Image {
+    #[allow(unused)]
     pub id: i64,
     pub source_id: i64,
     pub timestamp: i64,

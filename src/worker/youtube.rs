@@ -9,7 +9,7 @@ use crate::util::Result;
 use super::db;
 use super::schema;
 
-pub fn update(source: &db::Source, conn: &SqliteConnection) -> Result<()> {
+pub fn update(source: &db::Source, conn: &mut SqliteConnection) -> Result<()> {
     use schema::sources::dsl;
 
     let url = source

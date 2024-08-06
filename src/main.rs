@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate diesel;
-extern crate dotenv;
+extern crate dotenvy;
 #[macro_use]
 extern crate rocket;
 
 use chrono::Duration;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use std::env;
 
 mod api;
@@ -25,12 +25,12 @@ async fn main() -> Result<(), rocket::Error> {
     let worker = worker::Worker::new(&database_url);
     let worker_handle = worker.start(Duration::seconds(1)).unwrap();
 
-    let rocket_result = rocket::build()
+    rocket::build()
         .manage(pool)
         .mount("/", routes![api::get_image])
         .launch()
-        .await;
+        .await?;
 
     worker_handle.stop();
-    rocket_result
+    Ok(())
 }

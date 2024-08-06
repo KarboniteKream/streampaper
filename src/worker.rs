@@ -32,27 +32,27 @@ impl Worker {
     pub fn start(mut self, interval: Duration) -> Result<ScheduleHandle> {
         let pool = self.pool.clone();
         self.scheduler.every(15.minutes()).run(move || {
-            if let Err(e) = update_sources(&pool.get()) {
+            if let Err(e) = update_sources(&mut pool.get()) {
                 eprintln!("Unable to update sources: {}", e);
             }
         });
 
         let pool = self.pool.clone();
         self.scheduler.every(1.minutes()).run(move || {
-            if let Err(e) = download_images(&pool.get()) {
+            if let Err(e) = download_images(&mut pool.get()) {
                 eprintln!("Unable to download images: {}", e);
             }
         });
 
         let pool = self.pool.clone();
         self.scheduler.every(1.hours()).run(move || {
-            if let Err(e) = remove_images(&pool.get()) {
+            if let Err(e) = remove_images(&mut pool.get()) {
                 eprintln!("Unable to remove old images: {}", e);
             }
         });
 
         // Initial update.
-        let count = update_sources(&self.pool.get())?;
+        let count = update_sources(&mut self.pool.get())?;
         println!("Updated {} source(s).", count);
 
         let interval = interval.to_std()?;
@@ -61,7 +61,7 @@ impl Worker {
 }
 
 /// Updates source playlist URLs if they don't exist or haven't been updated in 5 minutes.
-fn update_sources(conn: &SqliteConnection) -> Result<usize> {
+fn update_sources(conn: &mut SqliteConnection) -> Result<usize> {
     use schema::sources::dsl;
 
     let threshold = Utc::now().sub(Duration::minutes(5)).timestamp();
@@ -94,7 +94,7 @@ fn update_sources(conn: &SqliteConnection) -> Result<usize> {
 }
 
 /// Downloads the images of all sources.
-fn download_images(conn: &SqliteConnection) -> Result<usize> {
+fn download_images(conn: &mut SqliteConnection) -> Result<usize> {
     use schema::sources::dsl;
 
     let sources = dsl::sources.load::<db::Source>(conn)?;
@@ -139,7 +139,7 @@ fn download_images(conn: &SqliteConnection) -> Result<usize> {
 }
 
 /// Removes images older than 7 days.
-fn remove_images(conn: &SqliteConnection) -> Result<usize> {
+fn remove_images(conn: &mut SqliteConnection) -> Result<usize> {
     use schema::images::{dsl, table};
 
     let sources = schema::sources::dsl::sources

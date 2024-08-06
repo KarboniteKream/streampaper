@@ -13,15 +13,15 @@ pub async fn get_image(
     source_name: &str,
     timestamp: i64,
 ) -> Option<(ContentType, Option<Vec<u8>>)> {
-    let conn = pool.get();
+    let conn = &mut pool.get();
 
     use schema::sources::dsl;
 
     let source = dsl::sources
         .filter(dsl::name.eq(source_name))
-        .first::<db::Source>(&conn)
+        .first::<db::Source>(conn)
         .ok()?;
-    let image = find_closest_image(&conn, source.id, timestamp)?;
+    let image = find_closest_image(conn, source.id, timestamp)?;
 
     let path = format!("images/{}/{}.jpg", source.name, image.timestamp);
     let data = spawn_blocking(|| fs::read(path)).await.unwrap().ok();
@@ -30,7 +30,7 @@ pub async fn get_image(
 }
 
 fn find_closest_image(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     source_id: i64,
     timestamp: i64,
 ) -> Option<db::Image> {
