@@ -1,7 +1,7 @@
 use diesel::prelude::*;
+use rocket::State;
 use rocket::http::ContentType;
 use rocket::tokio::task::spawn_blocking;
-use rocket::State;
 use std::fs;
 
 use super::db;

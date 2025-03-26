@@ -1,6 +1,6 @@
 use chrono::Utc;
-use diesel::prelude::*;
 use diesel::SqliteConnection;
+use diesel::prelude::*;
 use std::process::Command;
 
 use crate::util::Error::{CommandError, NoUrl};

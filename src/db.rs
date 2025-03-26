@@ -1,5 +1,5 @@
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::SqliteConnection;
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 
 #[derive(Clone)]
 pub struct ConnectionPool(Pool<ConnectionManager<SqliteConnection>>);
