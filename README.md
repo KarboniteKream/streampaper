@@ -7,9 +7,9 @@ Fetches and serves YouTube live stream images for dynamic wallpapers with a time
 - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp)
 - [`ffmpeg`](https://github.com/FFmpeg/FFmpeg)
 
-Make sure to run the database migrations before starting:
+Make sure to initialize the database before starting:
 ```bash
-diesel migration run
+sqlite3 database.sqlite < schema.sql
 ```
 
 ## Running

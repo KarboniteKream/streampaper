@@ -1,21 +1,11 @@
-use diesel::SqliteConnection;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use rusqlite::{Connection, Row};
+use std::path::Path;
 
-#[derive(Clone)]
-pub struct ConnectionPool(Pool<ConnectionManager<SqliteConnection>>);
-
-impl ConnectionPool {
-    pub fn new(database_url: &str) -> ConnectionPool {
-        let manager = ConnectionManager::new(database_url);
-        ConnectionPool(Pool::new(manager).expect("Unable to create a connection pool"))
-    }
-
-    pub fn get(&self) -> PooledConnection<ConnectionManager<SqliteConnection>> {
-        self.0.get().unwrap()
-    }
+pub fn open(path: &Path) -> rusqlite::Result<Connection> {
+    Connection::open(path)
 }
 
-#[derive(Queryable)]
+#[derive(Debug, Clone)]
 pub struct Source {
     pub id: i64,
     pub name: String,
@@ -28,10 +18,17 @@ pub struct Source {
     pub updated_at: i64,
 }
 
-#[derive(Queryable)]
-pub struct Image {
-    #[allow(unused)]
-    pub id: i64,
-    pub source_id: i64,
-    pub timestamp: i64,
+impl Source {
+    pub fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            typ: row.get(2)?,
+            url: row.get(3)?,
+            playlist: row.get(4)?,
+            headers: row.get(5)?,
+            enabled: row.get(6)?,
+            updated_at: row.get(7)?,
+        })
+    }
 }

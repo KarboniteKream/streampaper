@@ -1,5 +1,4 @@
-use diesel::SqliteConnection;
-use diesel::prelude::*;
+use rusqlite::Connection;
 use std::process::Command;
 
 use crate::util;
@@ -7,11 +6,8 @@ use crate::util::Error::{CommandError, NoUrl};
 use crate::util::Result;
 
 use super::db;
-use super::schema;
 
-pub fn update(source: &db::Source, conn: &mut SqliteConnection) -> Result<()> {
-    use schema::sources::dsl;
-
+pub fn update(source: &db::Source, conn: &Connection) -> Result<()> {
     let url = source
         .url
         .as_ref()
@@ -36,12 +32,10 @@ pub fn update(source: &db::Source, conn: &mut SqliteConnection) -> Result<()> {
     }
 
     let playlist = String::from_utf8(output.stdout)?;
-    diesel::update(dsl::sources.find(source.id))
-        .set((
-            dsl::playlist.eq(playlist.trim()),
-            dsl::updated_at.eq(util::unix_timestamp()),
-        ))
-        .execute(conn)?;
+    conn.execute(
+        "UPDATE sources SET playlist = ?1, updated_at = ?2 WHERE id = ?3",
+        (playlist.trim(), util::unix_timestamp(), source.id),
+    )?;
 
     Ok(())
 }

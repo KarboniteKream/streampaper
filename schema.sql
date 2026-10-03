@@ -18,3 +18,14 @@ INSERT INTO sources (id, name, typ, url, playlist, headers, enabled) VALUES
     (1, 'Kamikochi', 2, 'https://www.youtube.com/watch?v=Iv2VUE_UhRQ', null, null, 1),
     (2, 'KamniskoSedlo', 1, 'http://pdkamnik.si/watermark.php?filename=sedlo.jpg', null, null, 1),
     (3, 'PlansarskoJezero', 3, null, 'https://livestream.panoramicam.eu/Jezersko/Jezersko.stream/playlist.m3u8', 'Referer: https://panoramicam.eu/', 1);
+
+CREATE TABLE images (
+    id INTEGER PRIMARY KEY,
+    source_id INTEGER NOT NULL,
+    timestamp INTEGER NOT NULL,
+
+    FOREIGN KEY (source_id) REFERENCES sources (id)
+);
+
+CREATE INDEX idx_images_timestamp_source_id
+    ON images (timestamp, source_id);
