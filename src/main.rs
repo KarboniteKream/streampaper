@@ -4,8 +4,8 @@ extern crate dotenvy;
 #[macro_use]
 extern crate rocket;
 
-use chrono::Duration;
 use dotenvy::dotenv;
+use std::time::Duration;
 
 mod api;
 mod config;
@@ -26,7 +26,7 @@ async fn main() -> Result<(), rocket::Error> {
     let pool = db::ConnectionPool::new(&config.database_url);
 
     let worker = worker::Worker::new(&config);
-    let worker_handle = worker.start(Duration::seconds(1)).unwrap();
+    let worker_handle = worker.start(Duration::from_secs(1)).unwrap();
 
     rocket::build()
         .manage(pool)

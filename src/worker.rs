@@ -1,12 +1,14 @@
-use chrono::{Duration, Utc};
-use clokwerk::{ScheduleHandle, Scheduler, TimeUnits};
 use diesel::prelude::*;
 use std::collections::HashMap;
 use std::fs;
-use std::ops::Sub;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::config::Config;
+use crate::util;
 use crate::util::Error::UnsupportedSource;
 use crate::util::Result;
 
@@ -18,8 +20,17 @@ mod image;
 mod stream;
 mod youtube;
 
+pub struct WorkerHandle {
+    running: Arc<AtomicBool>,
+}
+
+impl WorkerHandle {
+    pub fn stop(&self) {
+        self.running.store(false, Ordering::Relaxed);
+    }
+}
+
 pub struct Worker {
-    scheduler: Scheduler,
     pool: db::ConnectionPool,
     image_dir: PathBuf,
 }
@@ -27,42 +38,55 @@ pub struct Worker {
 impl Worker {
     pub fn new(config: &Config) -> Worker {
         Worker {
-            scheduler: Scheduler::new(),
             pool: db::ConnectionPool::new(&config.database_url),
             image_dir: config.image_dir.clone(),
         }
     }
 
-    pub fn start(mut self, interval: Duration) -> Result<ScheduleHandle> {
-        let pool = self.pool.clone();
-        self.scheduler.every(15.minutes()).run(move || {
-            if let Err(e) = update_sources(&mut pool.get()) {
-                eprintln!("Unable to update sources: {}", e);
-            }
-        });
-
-        let pool = self.pool.clone();
-        let image_dir = self.image_dir.clone();
-        self.scheduler.every(1.minutes()).run(move || {
-            if let Err(e) = download_images(&mut pool.get(), &image_dir) {
-                eprintln!("Unable to download images: {}", e);
-            }
-        });
-
-        let pool = self.pool.clone();
-        let image_dir = self.image_dir.clone();
-        self.scheduler.every(1.hours()).run(move || {
-            if let Err(e) = remove_images(&mut pool.get(), &image_dir) {
-                eprintln!("Unable to remove old images: {}", e);
-            }
-        });
+    pub fn start(self, interval: Duration) -> Result<WorkerHandle> {
+        let running = Arc::new(AtomicBool::new(true));
+        let handle = WorkerHandle {
+            running: running.clone(),
+        };
 
         // Initial update.
         let count = update_sources(&mut self.pool.get())?;
         println!("Updated {} source(s).", count);
 
-        let interval = interval.to_std()?;
-        Ok(self.scheduler.watch_thread(interval))
+        thread::spawn(move || self.run_loop(running, interval));
+
+        Ok(handle)
+    }
+
+    fn run_loop(&self, running: Arc<AtomicBool>, interval: Duration) {
+        let mut last_images = Instant::now();
+        let mut last_sources = Instant::now();
+        let mut last_cleanup = Instant::now();
+
+        while running.load(Ordering::Relaxed) {
+            thread::sleep(interval);
+
+            if last_images.elapsed() >= Duration::from_mins(1) {
+                last_images = Instant::now();
+                if let Err(e) = download_images(&mut self.pool.get(), &self.image_dir) {
+                    eprintln!("Unable to download images: {}", e);
+                }
+            }
+
+            if last_sources.elapsed() >= Duration::from_mins(15) {
+                last_sources = Instant::now();
+                if let Err(e) = update_sources(&mut self.pool.get()) {
+                    eprintln!("Unable to update sources: {}", e);
+                }
+            }
+
+            if last_cleanup.elapsed() >= Duration::from_hours(1) {
+                last_cleanup = Instant::now();
+                if let Err(e) = remove_images(&mut self.pool.get(), &self.image_dir) {
+                    eprintln!("Unable to remove old images: {}", e);
+                }
+            }
+        }
     }
 }
 
@@ -70,7 +94,7 @@ impl Worker {
 fn update_sources(conn: &mut SqliteConnection) -> Result<usize> {
     use schema::sources::dsl;
 
-    let threshold = Utc::now().sub(Duration::minutes(5)).timestamp();
+    let threshold = util::unix_timestamp() - Duration::from_mins(5).as_secs() as i64;
     let mut count = 0;
 
     let sources = dsl::sources
@@ -117,7 +141,7 @@ fn download_images(conn: &mut SqliteConnection, image_dir: &Path) -> Result<usiz
         let directory = image_dir.join(&source.name);
         fs::create_dir_all(&directory)?;
 
-        let timestamp = Utc::now().timestamp();
+        let timestamp = util::unix_timestamp();
         let filename = directory.join(format!("{}.jpg", timestamp));
 
         let result = match SourceType::from(source.typ) {
@@ -154,7 +178,7 @@ fn remove_images(conn: &mut SqliteConnection, image_dir: &Path) -> Result<usize>
         .map(|source| (source.id, source.name))
         .collect::<HashMap<i64, String>>();
 
-    let threshold = Utc::now().sub(Duration::days(7)).timestamp();
+    let threshold = util::unix_timestamp() - Duration::from_hours(7 * 24).as_secs() as i64;
     let predicate = dsl::timestamp.le(threshold);
 
     let images = dsl::images.filter(&predicate).load::<db::Image>(conn)?;

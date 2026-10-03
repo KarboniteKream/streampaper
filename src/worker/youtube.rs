@@ -1,8 +1,8 @@
-use chrono::Utc;
 use diesel::SqliteConnection;
 use diesel::prelude::*;
 use std::process::Command;
 
+use crate::util;
 use crate::util::Error::{CommandError, NoUrl};
 use crate::util::Result;
 
@@ -40,7 +40,7 @@ pub fn update(source: &db::Source, conn: &mut SqliteConnection) -> Result<()> {
     diesel::update(dsl::sources.find(source.id))
         .set((
             dsl::playlist.eq(playlist.trim()),
-            dsl::updated_at.eq(Utc::now().timestamp()),
+            dsl::updated_at.eq(util::unix_timestamp()),
         ))
         .execute(conn)?;
 

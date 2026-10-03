@@ -1,9 +1,18 @@
 use std::error;
 use std::fmt::{self, Display, Formatter};
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::models::SourceType;
 
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
+
+pub fn unix_timestamp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
