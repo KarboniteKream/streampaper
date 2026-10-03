@@ -1,11 +1,9 @@
 #[macro_use]
 extern crate diesel;
 extern crate dotenvy;
-#[macro_use]
-extern crate rocket;
-
 use dotenvy::dotenv;
 use std::time::Duration;
+use tiny_http::Server;
 
 mod api;
 mod config;
@@ -17,23 +15,21 @@ mod worker;
 
 use config::Config;
 
-#[rocket::main]
-#[allow(clippy::result_large_err)]
-async fn main() -> Result<(), rocket::Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let config = Config::from_env();
     let pool = db::ConnectionPool::new(&config.database_url);
 
     let worker = worker::Worker::new(&config);
-    let worker_handle = worker.start(Duration::from_secs(1)).unwrap();
+    let worker_handle = worker.start(Duration::from_secs(1))?;
 
-    rocket::build()
-        .manage(pool)
-        .manage(config)
-        .mount("/", routes![api::get_image])
-        .launch()
-        .await?;
+    let server = Server::http("0.0.0.0:8000").map_err(|e| e as Box<dyn std::error::Error>)?;
+    println!("Listening on http://0.0.0.0:8000");
+
+    for request in server.incoming_requests() {
+        api::handle_request(request, &pool, &config);
+    }
 
     worker_handle.stop();
     Ok(())

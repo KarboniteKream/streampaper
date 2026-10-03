@@ -1,20 +1,33 @@
 use diesel::prelude::*;
-use rocket::State;
-use rocket::http::ContentType;
-use rocket::tokio::task::spawn_blocking;
-use std::fs;
+use std::fs::File;
+use tiny_http::{Header, Method, Request, Response, StatusCode};
 
 use super::config::Config;
 use super::db;
 use super::schema;
 
-#[get("/images/<source_name>/<timestamp>")]
-pub async fn get_image(
-    pool: &State<db::ConnectionPool>,
-    config: &State<Config>,
+pub fn handle_request(request: Request, pool: &db::ConnectionPool, config: &Config) {
+    let path = request.url().split('?').next().unwrap_or("");
+    let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+
+    if request.method() == &Method::Get
+        && let ["images", source, timestamp] = parts.as_slice()
+        && let Ok(timestamp) = timestamp.parse()
+        && let Some(file) = get_image(pool, config, source, timestamp)
+    {
+        let header = "Content-Type: image/jpeg".parse::<Header>().unwrap();
+        let _ = request.respond(Response::from_file(file).with_header(header));
+    } else {
+        let _ = request.respond(Response::empty(StatusCode(404)));
+    }
+}
+
+fn get_image(
+    pool: &db::ConnectionPool,
+    config: &Config,
     source_name: &str,
     timestamp: i64,
-) -> Option<(ContentType, Option<Vec<u8>>)> {
+) -> Option<File> {
     let conn = &mut pool.get();
 
     use schema::sources::dsl;
@@ -29,9 +42,8 @@ pub async fn get_image(
         .image_dir
         .join(&source.name)
         .join(format!("{}.jpg", image.timestamp));
-    let data = spawn_blocking(|| fs::read(path)).await.unwrap().ok();
 
-    Some((ContentType::JPEG, data))
+    File::open(path).ok()
 }
 
 fn find_closest_image(
