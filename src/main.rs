@@ -4,7 +4,6 @@ use tiny_http::Server;
 mod api;
 mod config;
 mod db;
-mod models;
 mod util;
 mod worker;
 

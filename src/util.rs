@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::models::SourceType;
+use crate::db::SourceType;
 
 pub type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
@@ -14,10 +14,9 @@ pub fn unix_timestamp() -> i64 {
         .as_secs() as i64
 }
 
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum Error {
-    CommandError(String, String),
+    CommandFailed(String, String),
     NoPlaylist(String),
     NoUrl(String),
     UnsupportedSource(SourceType),
@@ -28,7 +27,7 @@ impl error::Error for Error {}
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::CommandError(command, message) => {
+            Self::CommandFailed(command, message) => {
                 write!(f, "Unable to execute command '{}': {}", command, message)
             }
             Self::NoPlaylist(source) => write!(f, "Source '{}' has no playlist", source),

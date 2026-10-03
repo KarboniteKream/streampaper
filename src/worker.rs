@@ -11,8 +11,7 @@ use crate::util;
 use crate::util::Error::UnsupportedSource;
 use crate::util::Result;
 
-use super::db;
-use super::models::SourceType;
+use super::db::{self, SourceType};
 
 mod image;
 mod stream;
@@ -97,9 +96,9 @@ impl Worker {
 fn update_sources(conn: &Connection) -> Result<usize> {
     let threshold = util::unix_timestamp() - Duration::from_mins(5).as_secs() as i64;
     let mut stmt = conn.prepare(
-        "SELECT id, name, typ, url, playlist, headers, enabled, updated_at
+        "SELECT id, name, typ, url, playlist, headers
          FROM sources
-         WHERE playlist IS NULL OR updated_at <= ?1",
+         WHERE enabled = 1 AND (playlist IS NULL OR updated_at <= ?1)",
     )?;
 
     let sources = stmt
@@ -108,10 +107,6 @@ fn update_sources(conn: &Connection) -> Result<usize> {
 
     let mut count = 0;
     for source in &sources {
-        if !source.enabled {
-            continue;
-        }
-
         let result = match SourceType::from(source.typ) {
             SourceType::YouTube => youtube::update(source, conn),
             _ => continue,
@@ -131,7 +126,7 @@ fn update_sources(conn: &Connection) -> Result<usize> {
 /// Downloads the images of all sources.
 fn download_images(conn: &Connection, image_dir: &Path) -> Result<usize> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, typ, url, playlist, headers, enabled, updated_at
+        "SELECT id, name, typ, url, playlist, headers
          FROM sources
          WHERE enabled = 1",
     )?;

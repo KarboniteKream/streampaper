@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::util::Error::{CommandError, NoPlaylist};
+use crate::util::Error::{CommandFailed, NoPlaylist};
 use crate::util::Result;
 
 use super::db;
@@ -25,8 +25,8 @@ pub fn download(source: &db::Source, filename: &Path) -> Result<()> {
     let output = cmd.output()?;
 
     if !output.status.success() {
-        let message = String::from_utf8(output.stderr)?;
-        return Err(CommandError(command.to_string(), message).into());
+        let message = String::from_utf8_lossy(&output.stderr).into_owned();
+        return Err(CommandFailed(command.to_string(), message).into());
     }
 
     Ok(())

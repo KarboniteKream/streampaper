@@ -5,6 +5,25 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     Connection::open(path)
 }
 
+#[derive(Debug)]
+pub enum SourceType {
+    Url,
+    YouTube,
+    Stream,
+    Unknown,
+}
+
+impl From<i32> for SourceType {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => Self::Url,
+            2 => Self::YouTube,
+            3 => Self::Stream,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Source {
     pub id: i64,
@@ -13,9 +32,6 @@ pub struct Source {
     pub url: Option<String>,
     pub playlist: Option<String>,
     pub headers: Option<String>,
-    pub enabled: bool,
-    #[allow(unused)]
-    pub updated_at: i64,
 }
 
 impl Source {
@@ -27,8 +43,6 @@ impl Source {
             url: row.get(3)?,
             playlist: row.get(4)?,
             headers: row.get(5)?,
-            enabled: row.get(6)?,
-            updated_at: row.get(7)?,
         })
     }
 }
