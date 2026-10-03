@@ -1,11 +1,12 @@
 use std::fs;
+use std::path::Path;
 
 use crate::util::Error::NoUrl;
 use crate::util::Result;
 
 use super::db;
 
-pub fn download(source: &db::Source, filename: &str) -> Result<()> {
+pub fn download(source: &db::Source, filename: &Path) -> Result<()> {
     let url = source
         .url
         .as_ref()

@@ -6,27 +6,31 @@ extern crate rocket;
 
 use chrono::Duration;
 use dotenvy::dotenv;
-use std::env;
 
 mod api;
+mod config;
 mod db;
 mod models;
 mod schema;
 mod util;
 mod worker;
 
+use config::Config;
+
 #[rocket::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> Result<(), rocket::Error> {
     dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = db::ConnectionPool::new(&database_url);
+    let config = Config::from_env();
+    let pool = db::ConnectionPool::new(&config.database_url);
 
-    let worker = worker::Worker::new(&database_url);
+    let worker = worker::Worker::new(&config);
     let worker_handle = worker.start(Duration::seconds(1)).unwrap();
 
     rocket::build()
         .manage(pool)
+        .manage(config)
         .mount("/", routes![api::get_image])
         .launch()
         .await?;

@@ -4,7 +4,9 @@ use diesel::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::ops::Sub;
+use std::path::{Path, PathBuf};
 
+use crate::config::Config;
 use crate::util::Error::UnsupportedSource;
 use crate::util::Result;
 
@@ -19,13 +21,15 @@ mod youtube;
 pub struct Worker {
     scheduler: Scheduler,
     pool: db::ConnectionPool,
+    image_dir: PathBuf,
 }
 
 impl Worker {
-    pub fn new(database_url: &str) -> Worker {
+    pub fn new(config: &Config) -> Worker {
         Worker {
             scheduler: Scheduler::new(),
-            pool: db::ConnectionPool::new(database_url),
+            pool: db::ConnectionPool::new(&config.database_url),
+            image_dir: config.image_dir.clone(),
         }
     }
 
@@ -38,15 +42,17 @@ impl Worker {
         });
 
         let pool = self.pool.clone();
+        let image_dir = self.image_dir.clone();
         self.scheduler.every(1.minutes()).run(move || {
-            if let Err(e) = download_images(&mut pool.get()) {
+            if let Err(e) = download_images(&mut pool.get(), &image_dir) {
                 eprintln!("Unable to download images: {}", e);
             }
         });
 
         let pool = self.pool.clone();
+        let image_dir = self.image_dir.clone();
         self.scheduler.every(1.hours()).run(move || {
-            if let Err(e) = remove_images(&mut pool.get()) {
+            if let Err(e) = remove_images(&mut pool.get(), &image_dir) {
                 eprintln!("Unable to remove old images: {}", e);
             }
         });
@@ -94,7 +100,7 @@ fn update_sources(conn: &mut SqliteConnection) -> Result<usize> {
 }
 
 /// Downloads the images of all sources.
-fn download_images(conn: &mut SqliteConnection) -> Result<usize> {
+fn download_images(conn: &mut SqliteConnection, image_dir: &Path) -> Result<usize> {
     use schema::sources::dsl;
 
     let sources = dsl::sources.load::<db::Source>(conn)?;
@@ -108,11 +114,11 @@ fn download_images(conn: &mut SqliteConnection) -> Result<usize> {
         }
 
         // Create the target directory, if necessary.
-        let directory = format!("images/{}", source.name);
+        let directory = image_dir.join(&source.name);
         fs::create_dir_all(&directory)?;
 
         let timestamp = Utc::now().timestamp();
-        let filename = format!("{}/{}.jpg", directory, timestamp);
+        let filename = directory.join(format!("{}.jpg", timestamp));
 
         let result = match SourceType::from(source.typ) {
             SourceType::Url => image::download(source, &filename),
@@ -139,7 +145,7 @@ fn download_images(conn: &mut SqliteConnection) -> Result<usize> {
 }
 
 /// Removes images older than 7 days.
-fn remove_images(conn: &mut SqliteConnection) -> Result<usize> {
+fn remove_images(conn: &mut SqliteConnection, image_dir: &Path) -> Result<usize> {
     use schema::images::{dsl, table};
 
     let sources = schema::sources::dsl::sources
@@ -156,7 +162,9 @@ fn remove_images(conn: &mut SqliteConnection) -> Result<usize> {
 
     for image in &images {
         if let Some(source) = sources.get(&image.source_id) {
-            let filename = format!("images/{}/{}.jpg", source, image.timestamp);
+            let filename = image_dir
+                .join(source)
+                .join(format!("{}.jpg", image.timestamp));
             fs::remove_file(filename).ok();
         }
     }

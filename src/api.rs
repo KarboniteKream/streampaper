@@ -4,12 +4,14 @@ use rocket::http::ContentType;
 use rocket::tokio::task::spawn_blocking;
 use std::fs;
 
+use super::config::Config;
 use super::db;
 use super::schema;
 
 #[get("/images/<source_name>/<timestamp>")]
 pub async fn get_image(
     pool: &State<db::ConnectionPool>,
+    config: &State<Config>,
     source_name: &str,
     timestamp: i64,
 ) -> Option<(ContentType, Option<Vec<u8>>)> {
@@ -23,7 +25,10 @@ pub async fn get_image(
         .ok()?;
     let image = find_closest_image(conn, source.id, timestamp)?;
 
-    let path = format!("images/{}/{}.jpg", source.name, image.timestamp);
+    let path = config
+        .image_dir
+        .join(&source.name)
+        .join(format!("{}.jpg", image.timestamp));
     let data = spawn_blocking(|| fs::read(path)).await.unwrap().ok();
 
     Some((ContentType::JPEG, data))
