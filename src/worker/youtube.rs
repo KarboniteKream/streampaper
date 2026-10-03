@@ -17,23 +17,22 @@ pub fn update(source: &db::Source, conn: &mut SqliteConnection) -> Result<()> {
         .as_ref()
         .ok_or_else(|| NoUrl(source.name.clone()))?;
 
-    let command = "yt-dlp".to_string();
-    let mut args = vec!["--get-url", "--format", "bestvideo", url];
+    let command = "yt-dlp";
+    let mut cmd = Command::new(command);
 
     if let Some(headers) = &source.headers {
-        let headers: Vec<_> = headers
-            .split(",")
-            .flat_map(|header| ["--add-headers", header])
-            .collect();
-
-        args = [headers, args].concat();
+        for header in headers.split(',') {
+            cmd.args(["--add-headers", header]);
+        }
     }
 
-    let output = Command::new(&command).args(args).output()?;
+    cmd.args(["--get-url", "--format", "bestvideo", url]);
+
+    let output = cmd.output()?;
 
     if !output.status.success() {
         let message = String::from_utf8(output.stderr)?;
-        return Err(CommandError(command, message).into());
+        return Err(CommandError(command.to_string(), message).into());
     }
 
     let playlist = String::from_utf8(output.stdout)?;

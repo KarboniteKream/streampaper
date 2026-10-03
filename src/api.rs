@@ -65,13 +65,8 @@ fn find_closest_image(
         .order(dsl::timestamp.asc())
         .first::<db::Image>(conn);
 
-    vec![older, newer]
+    [older, newer]
         .into_iter()
         .filter_map(|image| image.ok())
-        .map(|image| {
-            let diff = (image.timestamp - timestamp).abs();
-            (image, diff)
-        })
-        .min_by_key(|(_, diff)| *diff)
-        .map(|(image, _)| image)
+        .min_by_key(|image| (image.timestamp - timestamp).abs())
 }

@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate diesel;
-extern crate dotenvy;
+
 use dotenvy::dotenv;
 use std::time::Duration;
 use tiny_http::Server;
