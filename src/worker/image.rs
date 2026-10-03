@@ -12,8 +12,9 @@ pub fn download(source: &db::Source, filename: &Path) -> Result<()> {
         .as_ref()
         .ok_or_else(|| NoUrl(source.name.clone()))?;
 
-    let bytes = ureq::get(url).call()?.into_body().read_to_vec()?;
+    let mut reader = ureq::get(url).call()?.into_body().into_reader();
+    let mut file = fs::File::create(filename)?;
+    std::io::copy(&mut reader, &mut file)?;
 
-    fs::write(filename, bytes)?;
     Ok(())
 }
