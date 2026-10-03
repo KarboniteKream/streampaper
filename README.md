@@ -6,6 +6,7 @@ Fetches and serves YouTube live stream images for dynamic wallpapers with a time
 `streampaper` requires the following binaries to be on your `PATH`:
 - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp)
 - [`ffmpeg`](https://github.com/FFmpeg/FFmpeg)
+- [`curl`](https://github.com/curl/curl)
 
 Make sure to initialize the database before starting:
 ```bash

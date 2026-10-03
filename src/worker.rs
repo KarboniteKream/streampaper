@@ -107,7 +107,7 @@ fn update_sources(conn: &Connection) -> Result<usize> {
 
     let mut count = 0;
     for source in &sources {
-        let result = match SourceType::from(source.typ) {
+        let result = match source.typ {
             SourceType::YouTube => youtube::update(source, conn),
             _ => continue,
         };
@@ -143,7 +143,7 @@ fn download_images(conn: &Connection, image_dir: &Path) -> Result<usize> {
         let timestamp = util::unix_timestamp();
         let filename = directory.join(format!("{}.jpg", timestamp));
 
-        let result = match SourceType::from(source.typ) {
+        let result = match source.typ {
             SourceType::Url => image::download(source, &filename),
             SourceType::YouTube | SourceType::Stream => stream::download(source, &filename),
             typ => Err(UnsupportedSource(typ).into()),

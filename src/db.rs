@@ -5,7 +5,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     Connection::open(path)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SourceType {
     Url,
     YouTube,
@@ -28,7 +28,7 @@ impl From<i32> for SourceType {
 pub struct Source {
     pub id: i64,
     pub name: String,
-    pub typ: i32,
+    pub typ: SourceType,
     pub url: Option<String>,
     pub playlist: Option<String>,
     pub headers: Option<String>,
@@ -39,7 +39,7 @@ impl Source {
         Ok(Self {
             id: row.get(0)?,
             name: row.get(1)?,
-            typ: row.get(2)?,
+            typ: SourceType::from(row.get::<_, i32>(2)?),
             url: row.get(3)?,
             playlist: row.get(4)?,
             headers: row.get(5)?,
